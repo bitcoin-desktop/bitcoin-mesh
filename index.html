@@ -220,9 +220,20 @@
     }
   });
 
-  $('network').addEventListener('change', makeNode);
+  function dropSwarm(reason) {
+    if (!swarm) return;
+    swarm.leave();
+    swarm = null;
+    $('peersync').disabled = true;
+    $('mout').textContent = reason;
+  }
+  $('network').addEventListener('change', async () => {
+    dropSwarm('left swarm (network changed) — join again');
+    await makeNode();
+  });
   $('sync').addEventListener('click', sync);
   $('reset').addEventListener('click', async () => {
+    dropSwarm('left swarm (store reset) — join again to serve/sync the fresh node');
     indexedDB.deleteDatabase(`bitcoin-mesh:${$('network').value}`);
     $('status').textContent = 'store cleared';
     await makeNode();

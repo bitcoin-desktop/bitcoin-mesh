@@ -64,9 +64,11 @@ export class TrackerClient {
     this.ws = new WebSocket(this.url);
     this.ws.binaryType = 'arraybuffer';
     await new Promise((resolve, reject) => {
-      this.ws.onopen = resolve;
-      this.ws.onerror = () => reject(new Error(`signaling unreachable: ${this.url}`));
+      const timer = setTimeout(() => reject(new Error(`signaling connect timeout: ${this.url}`)), 8000);
+      this.ws.onopen = () => { clearTimeout(timer); resolve(); };
+      this.ws.onerror = () => { clearTimeout(timer); reject(new Error(`signaling unreachable: ${this.url}`)); };
     });
+    this.hooks.onOpen?.();
     // JSS sends text frames; be robust to binary-framed relays too
     this.ws.onmessage = (ev) => {
       const text = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data);

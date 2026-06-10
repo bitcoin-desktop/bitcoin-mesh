@@ -41,7 +41,9 @@ export class MeshSwarm {
 
   async join() {
     const resource = await swarmId(this.genesisHash);
+    this.onEvent?.('connecting', { url: this.signalingUrl });
     this.tracker = new TrackerClient(this.signalingUrl, resource, {
+      onOpen: () => this.onEvent?.('signaling-open', {}),
       makeOffers: async (n) => {
         const offers = await this.#makeOffers(n);
         this.onEvent?.('announce', { offers: offers.length, resource });
@@ -66,6 +68,7 @@ export class MeshSwarm {
   async #makeOffers(n) {
     const offers = [];
     for (let i = 0; i < n; i++) {
+      this.onEvent?.('gathering', { i: i + 1, n });
       const pc = new RTCPeerConnection(RTC_CONFIG);
       const dc = pc.createDataChannel('bitcoin-mesh');
       dc.binaryType = 'arraybuffer';
