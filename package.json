@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "desktop": "node bin/desktop.mjs"
+    "desktop": "node bin/desktop.js"
   },
   "dependencies": {
     "@bitcoin-desktop/schema": "github:bitcoin-desktop/schema#gh-pages"
