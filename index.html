@@ -102,7 +102,7 @@
 
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: WIRELOG_CSS }));
   const wire = createWireLog(document.getElementById('wirelog'));
-  wire.line('note', 'wire log: every message and verdict, as it happens (v0.0.10)');
+  wire.line('note', 'wire log: every message and verdict, as it happens (v0.0.11)');
   window.addEventListener('error', (e) => wire.line('bad', `page error: ${e.message}`));
   window.addEventListener('unhandledrejection', (e) =>
     wire.line('bad', `unhandled: ${e.reason?.message ?? e.reason}`));
@@ -127,6 +127,7 @@
 
   let node = null, nostr = null, streamTip = null;
   async function makeNode() {
+    node?.storage?.close?.(); // never leave a stale connection behind
     const network = $('network').value;
     nostr = new NostrSource({
       relays: NOSTR_RELAYS, pubkey: NOSTR_PUBKEY, network: NOSTR_NET[network], codec,
@@ -168,6 +169,7 @@
   }
 
   async function sync() {
+    if (!node?.meta) { $('status').textContent = 'node still initializing — try again in a moment'; return; }
     $('sync').disabled = true;
     try {
       const bridgeUrl = $('bridge').value.trim();
@@ -269,10 +271,21 @@
   });
   $('sync').addEventListener('click', sync);
   $('reset').addEventListener('click', async () => {
-    dropSwarm('left swarm (store reset) — join again to serve/sync the fresh node');
-    indexedDB.deleteDatabase(`bitcoin-mesh:${$('network').value}`);
-    $('status').textContent = 'store cleared';
-    await makeNode();
+    try {
+      dropSwarm('left swarm (store reset) — join again to serve/sync the fresh node');
+      node?.storage?.close?.(); // an open connection blocks the delete forever
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.deleteDatabase(`bitcoin-mesh:${$('network').value}`);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => reject(new Error('store is in use by another tab — close it and retry'));
+      });
+      $('status').textContent = 'store cleared';
+      await makeNode();
+    } catch (e) {
+      wire.line('bad', `reset failed: ${e.message}`);
+      $('status').innerHTML = `<span style="color:var(--bad)">✖ reset failed: ${e.message}</span>`;
+    }
   });
   $('verify').addEventListener('click', async () => {
     const txid = $('txid').value.trim().toLowerCase();
