@@ -54,7 +54,7 @@
      <a href="https://bitcoin-desktop.github.io/schema/">schema</a>'s rulesets; transactions
      verified against <em>your own</em> chain. Run a
      <a href="https://github.com/bitcoin-desktop/bitcoin-mesh#quick-start">desktop bridge</a>
-     for full-speed P2P sync. Mesh peers: coming.
+     for full-speed P2P sync, or join the mesh and sync from another browser.
      · <a href="https://github.com/bitcoin-desktop/bitcoin-mesh">github</a></p>
 
   <div class="controls">
@@ -67,6 +67,16 @@
   </div>
   <div id="status"></div>
   <div class="grid" id="stats"></div>
+
+  <div class="panel">
+    <h2>mesh — serve and sync headers browser-to-browser (WebRTC)</h2>
+    <div class="row">
+      <input id="signal" spellcheck="false" placeholder="JSS signaling, e.g. ws://localhost:4443/.webrtc  (jss start --webrtc)">
+      <button id="join">Join swarm</button>
+      <button id="peersync" disabled>Sync from peer</button>
+    </div>
+    <div id="mout" style="margin-top:.6rem;font:13px var(--mono);color:var(--muted)"></div>
+  </div>
 
   <div class="panel">
     <h2>verify a transaction against this node's chain</h2>
@@ -84,6 +94,7 @@
   import { Codec } from '@bitcoin-desktop/schema/codec/codec.js';
   import { P2pEngine } from '@bitcoin-desktop/schema/codec/p2p.js';
   import { LightNode, IdbStorage, EsploraSource, BridgeSource } from '@bitcoin-desktop/schema/codec/node.js';
+  import { MeshSwarm } from './src/mesh.js';
 
   const SCHEMA = 'https://bitcoin-desktop.github.io/schema/';
   const $ = (id) => document.getElementById(id);
@@ -147,6 +158,43 @@
       $('sync').disabled = false;
     }
   }
+
+  let swarm = null;
+  function renderMesh() {
+    if (!swarm) return;
+    const m = swarm.status();
+    $('mout').textContent = `swarm peers seen: ${m.swarmPeers} · connected: ${m.peers} · headers served: ${m.served}`;
+    $('peersync').disabled = m.peers === 0;
+  }
+  $('join').addEventListener('click', async () => {
+    try {
+      const url = $('signal').value.trim();
+      if (!url) throw new Error('enter a JSS /.webrtc signaling URL');
+      const network = $('network').value;
+      const genesisHash = chainSchema['@graph'].find((n) => n['@id'] === network).genesisHash;
+      const engine = P2pEngine.fromSchemas(codec, p2pSchema, chainSchema, network);
+      swarm = new MeshSwarm({ signalingUrl: url, node, codec, p2pEngine: engine, genesisHash });
+      swarm.onChange = renderMesh;
+      await swarm.join();
+      $('mout').textContent = 'joined — waiting for peers…';
+    } catch (e) {
+      $('mout').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
+    }
+  });
+  $('peersync').addEventListener('click', async () => {
+    try {
+      $('peersync').disabled = true;
+      const status = await swarm.syncFromPeer((at) => {
+        $('mout').textContent = `syncing from peer: validated to ${at.toLocaleString()}`;
+      });
+      $('mout').textContent = `✓ synced to ${status.tipHeight.toLocaleString()} from a browser peer — every header verified on receipt`;
+      render();
+    } catch (e) {
+      $('mout').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
+    } finally {
+      renderMesh();
+    }
+  });
 
   $('network').addEventListener('change', makeNode);
   $('sync').addEventListener('click', sync);

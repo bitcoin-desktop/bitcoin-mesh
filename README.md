@@ -1,6 +1,6 @@
 # Bitcoin Mesh
 
-**v0.0.1** · The WebTorrent of Bitcoin: light nodes for browser, desktop, and mobile that
+**v0.0.2** · The WebTorrent of Bitcoin: light nodes for browser, desktop, and mobile that
 verify everything and mesh together.
 
 **Live client:** https://bitcoin-desktop.github.io/bitcoin-mesh/
@@ -48,14 +48,20 @@ then put `ws://localhost:8334` in the browser client's bridge field.
 
 ## Roadmap
 
-1. **Shell** (v0.0.1, this) — the mesh client page + desktop bridge launcher, schema consumed
+1. **Shell** ✅ (v0.0.1) — the mesh client page + desktop bridge launcher, schema consumed
    from GitHub.
-2. **Neutrino layer** — the desktop node serves blocks and BIP 158 filters; the browser client
+2. **Mesh PoC** ✅ (v0.0.2) — browser peers serve each other headers over WebRTC data
+   channels, speaking the schema's own wire messages, with JSS's anonymous tracker mode
+   (`jss start --webrtc`, the protocol JSS models on WebTorrent trackers) as signaling.
+   Every header is verified on receipt — a lying peer is caught by the rules, which is why
+   peers need no reputation. Tab A syncs from a bridge; tab B syncs from tab A with no HTTP
+   source at all; B then serves C.
+3. **Neutrino layer** — the desktop node serves blocks and BIP 158 filters; the browser client
    watches an xpub via filters, privately.
-3. **Pod integration** — chain data as JSON-LD pod resources; bridges reachable through the
+4. **Pod integration** — chain data as JSON-LD pod resources; bridges reachable through the
    pod tunnel; announcements via the pod's Nostr relay.
-4. **The mesh** — browser↔browser WebRTC data channels (JSS signaling), peers serving each
-   other headers/filters/blocks, every object verified on receipt; desktop nodes seed.
+5. **The mesh, hardened** — multi-peer download, identity-based signaling (WebID), reorg
+   negotiation, desktop nodes seeding through the pod tunnel.
 
 ## License
 
