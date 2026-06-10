@@ -95,13 +95,14 @@
   import { Codec } from '@bitcoin-desktop/schema/codec/codec.js';
   import { P2pEngine } from '@bitcoin-desktop/schema/codec/p2p.js';
   import { LightNode, IdbStorage, EsploraSource, BridgeSource } from '@bitcoin-desktop/schema/codec/node.js';
+  import { NostrSource } from '@bitcoin-desktop/schema/codec/nostr.js';
   import { MeshSwarm } from './src/mesh.js?v=9';
   import { normalizeSignalingUrl, diagnoseSignaling } from './src/tracker.js?v=9';
   import { createWireLog, WIRELOG_CSS } from './src/log.js?v=9';
 
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: WIRELOG_CSS }));
   const wire = createWireLog(document.getElementById('wirelog'));
-  wire.line('note', 'wire log: every message and verdict, as it happens (v0.0.9)');
+  wire.line('note', 'wire log: every message and verdict, as it happens (v0.0.10)');
   window.addEventListener('error', (e) => wire.line('bad', `page error: ${e.message}`));
   window.addEventListener('unhandledrejection', (e) =>
     wire.line('bad', `unhandled: ${e.reason?.message ?? e.reason}`));
@@ -118,18 +119,39 @@
     'btc:mainnet': ['https://blockstream.info/api', 'https://mempool.space/api'],
     'btc:testnet4': ['https://mempool.space/testnet4/api'],
   };
+  // NIP-333 live header stream (https://nip-333.github.io/): a voice to
+  // cross-check, never a trust anchor
+  const NOSTR_NET = { 'btc:mainnet': 'btc', 'btc:testnet4': 'tbtc4' };
+  const NOSTR_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol'];
+  const NOSTR_PUBKEY = 'cccccccc829b802b7bf52d43edf7cfe62ac89f332a318b6826ac8bd6e73660da';
 
-  let node = null;
+  let node = null, nostr = null, streamTip = null;
   async function makeNode() {
     const network = $('network').value;
+    nostr = new NostrSource({
+      relays: NOSTR_RELAYS, pubkey: NOSTR_PUBKEY, network: NOSTR_NET[network], codec,
+    });
     node = LightNode.fromSchemas(codec, chainSchema, validateSchema, network, {
       storage: new IdbStorage(`bitcoin-mesh:${network}`),
-      sources: SOURCES[network].map((base) => new EsploraSource(base, codec)),
+      sources: [...SOURCES[network].map((base) => new EsploraSource(base, codec)), nostr],
       batchSize: 200,
     });
     await node.init();
     render();
+    nostrTick();
   }
+
+  // the live-tip ticker: stream tip + event age, signature-verified here
+  async function nostrTick() {
+    const mine = nostr;
+    try {
+      const height = await mine.tipHeight();
+      const age = Math.max(0, Math.round((Date.now() / 1000 - mine.lastEvent.created_at) / 60));
+      if (mine === nostr) streamTip = { height, age };
+    } catch { if (mine === nostr) streamTip = null; }
+    render();
+  }
+  setInterval(nostrTick, 60000);
 
   function render() {
     const s = node.status();
@@ -140,7 +162,9 @@
       <div class="stat"><div class="k">headers stored (since checkpoint ${s.checkpoint.toLocaleString()})</div><div class="v">${s.headersStored.toLocaleString()}</div></div>
       <div class="stat"><div class="k">work since checkpoint</div><div class="v">2^${work.toString(2).length - 1}</div></div>
       <div class="stat"><div class="k">sources</div><div class="v">${s.divergence
-        ? `<span style="color:var(--bad)">⚠ diverge @ ${s.divergence.height}</span>` : `<span style="color:var(--ok)">✓ agree</span>`}</div></div>`;
+        ? `<span style="color:var(--bad)">⚠ diverge @ ${s.divergence.height}</span>` : `<span style="color:var(--ok)">✓ agree</span>`}</div></div>
+      <div class="stat"><div class="k">NIP-333 live stream (nostr, sig-verified)</div><div class="v">${streamTip
+        ? `${streamTip.height.toLocaleString()} · ${streamTip.age}m ago` : '<span style="color:var(--muted)">…</span>'}</div></div>`;
   }
 
   async function sync() {
