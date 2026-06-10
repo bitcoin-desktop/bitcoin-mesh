@@ -71,7 +71,7 @@
   <div class="panel">
     <h2>mesh — serve and sync headers browser-to-browser (WebRTC)</h2>
     <div class="row">
-      <input id="signal" spellcheck="false" value="melvincarvalho.com" placeholder="JSS signaling host (jss start --webrtc)">
+      <input id="signal" spellcheck="false" placeholder="JSS signaling host (jss start --webrtc)">
       <button id="join">Join swarm</button>
       <button id="peersync" disabled>Sync from peer</button>
     </div>
@@ -184,7 +184,7 @@
   $('join').addEventListener('click', async () => {
     try {
       const url = normalizeSignalingUrl($('signal').value);
-      if (!url) throw new Error('enter a JSS signaling host, e.g. melvincarvalho.com or ws://localhost:4443');
+      if (!url) throw new Error('enter a JSS signaling host, e.g. ws://localhost:4443');
       $('signal').value = url;
       const network = $('network').value;
       const genesisHash = chainSchema['@graph'].find((n) => n['@id'] === network).genesisHash;
