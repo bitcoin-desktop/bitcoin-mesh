@@ -1,0 +1,19 @@
+{
+  "name": "@bitcoin-desktop/bitcoin-mesh",
+  "version": "0.0.1",
+  "description": "The WebTorrent of Bitcoin: light nodes for browser, desktop, and mobile that verify everything and mesh together. Independent project; not affiliated with Bitcoin Core.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "desktop": "node bin/desktop.mjs"
+  },
+  "dependencies": {
+    "@bitcoin-desktop/schema": "github:bitcoin-desktop/schema#gh-pages"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitcoin-desktop/bitcoin-mesh.git"
+  },
+  "homepage": "https://bitcoin-desktop.github.io/bitcoin-mesh/",
+  "license": "MIT"
+}
