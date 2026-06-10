@@ -186,3 +186,36 @@ test('a lying peer is caught on receipt', async () => {
   await assert.rejects(() => nodeB.syncP2p(new PeerChannel(chanB, codec, engine)), /rejected/);
   assert.ok(nodeB.meta.tipHeight < t4.run.startHeight + 5, 'B kept only what verified');
 });
+
+test('observability hooks fire: wire, serve, and they do not disturb the sync', async () => {
+  const nodeA = new LightNode({
+    codec, headerEngine, storage: new MemoryStorage(), sources: [], checkpoint,
+  });
+  await nodeA.init();
+  for (const [i, hex] of t4.run.headers.slice(1).entries()) {
+    await nodeA.storage.set(`h:${t4.run.startHeight + 1 + i}`, hex);
+  }
+  nodeA.meta.tipHeight = t4.run.startHeight + t4.run.headers.length - 1;
+  await nodeA.storage.set('meta', nodeA.meta);
+
+  const nodeB = new LightNode({
+    codec, headerEngine, storage: new MemoryStorage(), sources: [], checkpoint,
+  });
+  await nodeB.init();
+
+  const [chanA, chanB] = channelPair();
+  const events = [];
+  const peerAtA = new PeerChannel(chanA, codec, engine);
+  const peerAtB = new PeerChannel(chanB, codec, engine);
+  peerAtA.onWire = (dir, command) => events.push(`A:${dir}:${command}`);
+  peerAtB.onWire = (dir, command) => events.push(`B:${dir}:${command}`);
+  const serverA = new HeaderServer(nodeA, codec);
+  serverA.onServe = (count) => events.push(`A:served:${count}`);
+  serverA.attach(peerAtA);
+
+  await nodeB.syncP2p(peerAtB);
+  assert.ok(events.includes('B:out:getheaders'));
+  assert.ok(events.includes('A:in:getheaders'));
+  assert.ok(events.includes('B:in:headers'));
+  assert.ok(events.some((e) => e.startsWith('A:served:')));
+});

@@ -10,12 +10,14 @@ export class PeerChannel {
     this.engine = p2pEngine;
     this.waiters = [];
     this.onRequest = null; // (msg) => void — the serving side
+    this.onWire = null;    // (dir, command, size) => void — observability
     this.base = 'peer://';
     channel.onmessage = (ev) => {
       const bytes = new Uint8Array(ev.data ?? ev); // RTCDataChannel event or raw
       let msg;
       try { msg = this.engine.decodeMessage(bytes); } catch { return; }
       if (!msg.checksumOk) return;
+      this.onWire?.('in', msg.command, bytes.length);
       const i = this.waiters.findIndex((w) => w.commands.has(msg.command));
       if (i >= 0) this.waiters.splice(i, 1)[0].resolve(msg);
       else this.onRequest?.(msg);
@@ -23,6 +25,7 @@ export class PeerChannel {
   }
 
   send(command, payload = null) {
+    this.onWire?.('out', command, 0);
     this.channel.send(this.engine.encodeMessage(command, payload));
   }
 
@@ -93,6 +96,7 @@ export class HeaderServer {
     peerChannel.onRequest = async (msg) => {
       if (msg.command !== 'getheaders' || !msg.decoded) return;
       const headers = await this.headersAfter(msg.payload.blockLocator);
+      this.onServe?.(headers.length, this.served);
       peerChannel.send('headers', {
         entries: headers.map((header) => ({ header, txCount: 0 })),
       });
