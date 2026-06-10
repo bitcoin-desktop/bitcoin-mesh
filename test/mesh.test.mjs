@@ -227,3 +227,31 @@ test('signaling input normalizes like a human expects', () => {
   assert.equal(normalizeSignalingUrl('wss://melvin.me/custom'), 'wss://melvin.me/custom');
   assert.equal(normalizeSignalingUrl('  '), null);
 });
+
+test('empty-offers announce is a pure keepalive; closed sockets reconnect via hook', async () => {
+  const tracker = await startMockTracker();
+  const resource = await swarmId(t4.genesisHash);
+  try {
+    let closes = 0;
+    const client = new TrackerClient(`ws://127.0.0.1:${tracker.port}`, resource, {
+      makeOffers: async () => [{ offer_id: 'k1', sdp: 'OFFER' }],
+      onOffer: async () => null,
+      onAnswer: () => {},
+      onClose: () => { closes++; },
+    }, { offersPerAnnounce: 1 });
+    await client.connect();
+    await client.announce([]); // keepalive ping: must be accepted
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(client.connected, true);
+
+    client.ws.close(); // simulate the proxy dropping us
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(closes, 1, 'onClose hook fired');
+
+    client.close(); // explicit leave must NOT fire the hook again
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(closes, 1);
+  } finally {
+    tracker.close();
+  }
+});

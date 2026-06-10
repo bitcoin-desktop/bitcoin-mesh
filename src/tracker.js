@@ -74,13 +74,19 @@ export class TrackerClient {
       const text = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data);
       this.#onMessage(JSON.parse(text));
     };
+    this.ws.onclose = () => { if (!this.closed) this.hooks.onClose?.(); };
     await this.announce();
   }
 
-  async announce() {
-    const offers = await this.hooks.makeOffers(this.offersPerAnnounce);
+  // With no argument: announce fresh offers. With offers: announce exactly
+  // those — an empty array is a pure presence/keepalive ping.
+  async announce(offers = null) {
+    if (offers == null) offers = await this.hooks.makeOffers(this.offersPerAnnounce);
+    if (this.ws?.readyState !== 1) throw new Error('signaling socket not open');
     this.ws.send(JSON.stringify({ type: 'announce', resource: this.resource, offers }));
   }
+
+  get connected() { return this.ws?.readyState === 1; }
 
   async #onMessage(msg) {
     if (msg.resource && msg.resource !== this.resource) return;
@@ -101,6 +107,7 @@ export class TrackerClient {
   }
 
   close() {
+    this.closed = true;
     try { this.ws?.send(JSON.stringify({ type: 'leave', resource: this.resource })); } catch {}
     this.ws?.close();
   }
