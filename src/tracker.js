@@ -28,16 +28,14 @@ export function normalizeSignalingUrl(input) {
   }
 }
 
-// Preflight the endpoint over HTTP so failures are diagnosable: a WebSocket
-// error event carries no status code, but a fetch does.
+// Diagnose a FAILED WebSocket connect. Run only after the socket refused:
+// JSS's websocket-only route 404s plain GETs even when signaling works,
+// so an HTTP probe can only distinguish dead host from live-but-refusing.
 export async function diagnoseSignaling(wsUrl) {
   const httpUrl = wsUrl.replace(/^ws/, 'http');
   try {
-    const res = await fetch(httpUrl, { method: 'GET' });
-    if (res.status === 404) {
-      return `JSS is reachable but signaling is off — start it with --webrtc (JSS_WEBRTC=true)`;
-    }
-    return null; // endpoint exists (e.g. 400/426 upgrade-required) — proceed
+    await fetch(httpUrl, { method: 'GET' });
+    return `host is up but the WebSocket was refused — is the server started with --webrtc (JSS_WEBRTC=true)?`;
   } catch {
     return `signaling unreachable: ${wsUrl}`;
   }

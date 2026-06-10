@@ -71,7 +71,7 @@
   <div class="panel">
     <h2>mesh — serve and sync headers browser-to-browser (WebRTC)</h2>
     <div class="row">
-      <input id="signal" spellcheck="false" placeholder="JSS signaling host, e.g. melvin.me  (needs: jss start --webrtc)">
+      <input id="signal" spellcheck="false" value="melvincarvalho.com" placeholder="JSS signaling host (jss start --webrtc)">
       <button id="join">Join swarm</button>
       <button id="peersync" disabled>Sync from peer</button>
     </div>
@@ -184,17 +184,19 @@
   $('join').addEventListener('click', async () => {
     try {
       const url = normalizeSignalingUrl($('signal').value);
-      if (!url) throw new Error('enter a JSS signaling host, e.g. melvin.me or ws://localhost:4443');
+      if (!url) throw new Error('enter a JSS signaling host, e.g. melvincarvalho.com or ws://localhost:4443');
       $('signal').value = url;
-      const problem = await diagnoseSignaling(url);
-      if (problem) throw new Error(problem);
       const network = $('network').value;
       const genesisHash = chainSchema['@graph'].find((n) => n['@id'] === network).genesisHash;
       const engine = P2pEngine.fromSchemas(codec, p2pSchema, chainSchema, network);
       swarm = new MeshSwarm({ signalingUrl: url, node, codec, p2pEngine: engine, genesisHash });
       swarm.onChange = renderMesh;
       swarm.onEvent = (type, detail) => wire.meshEvent(type, detail);
-      await swarm.join();
+      try {
+        await swarm.join();
+      } catch (joinErr) {
+        throw new Error(await diagnoseSignaling(swarm.signalingUrl) ?? joinErr.message);
+      }
       $('mout').textContent = 'joined — waiting for peers…';
     } catch (e) {
       $('mout').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
