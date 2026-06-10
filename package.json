@@ -1,6 +1,6 @@
 {
   "name": "@bitcoin-desktop/bitcoin-mesh",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "The WebTorrent of Bitcoin: light nodes for browser, desktop, and mobile that verify everything and mesh together. Independent project; not affiliated with Bitcoin Core.",
   "type": "module",
   "scripts": {

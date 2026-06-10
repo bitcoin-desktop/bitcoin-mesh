@@ -181,6 +181,12 @@
     $('mout').textContent = `swarm peers seen: ${m.swarmPeers} · connected: ${m.peers} · headers served: ${m.served}`;
     $('peersync').disabled = m.peers === 0;
   }
+  const SIGNAL_KEY = 'bitcoin-mesh:signaling';
+  try {
+    const saved = localStorage.getItem(SIGNAL_KEY);
+    if (saved) $('signal').value = saved;
+  } catch {}
+  $('signal').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join').click(); });
   $('join').addEventListener('click', async () => {
     try {
       const url = normalizeSignalingUrl($('signal').value);
@@ -197,6 +203,7 @@
       } catch (joinErr) {
         throw new Error(await diagnoseSignaling(swarm.signalingUrl) ?? joinErr.message);
       }
+      try { localStorage.setItem(SIGNAL_KEY, url); } catch {}
       $('mout').textContent = 'joined — waiting for peers…';
     } catch (e) {
       $('mout').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
