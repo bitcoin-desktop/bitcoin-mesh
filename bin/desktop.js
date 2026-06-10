@@ -6,7 +6,7 @@
 //
 //   npm run desktop -- [--network mainnet|testnet4] [--port 8334] [--peer host[:port]]
 
-import { startBridge } from '@bitcoin-desktop/schema/bridge/bridge.mjs';
+import { startBridge } from '@bitcoin-desktop/schema/bridge/bridge.js';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
