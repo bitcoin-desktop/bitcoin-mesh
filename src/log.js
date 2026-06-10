@@ -57,6 +57,10 @@ export function createWireLog(container, { max = 250 } = {}) {
       case 'connecting': return line('out', `signaling: connecting to ${detail.url}`);
       case 'signaling-open': return line('ok', 'signaling connected');
       case 'gathering': return line('note', `gathering ICE for offer ${detail.i}/${detail.n}… (can take a few seconds)`);
+      case 'waiting': return line('note', 'no peers yet — staying announced; open this page elsewhere to connect');
+      case 'keepalive': return line('note', 'keepalive ping (staying in the swarm)');
+      case 'signaling-lost': return line('bad', `signaling connection lost — reconnecting (attempt ${detail.attempt})…`);
+      case 'signaling-restored': return line('ok', 'signaling restored — re-announced');
       case 'announce': return line('out', `swarm: announce ×${detail.offers} offers (resource ${detail.resource.slice(0, 12)}…)`);
       case 'swarm-peers': return line('in', `swarm: ${detail.count} peer${detail.count === 1 ? '' : 's'} seen by tracker`);
       case 'offer-in': return line('in', 'swarm: offer from a peer — answering');

@@ -44,6 +44,7 @@ export class MeshSwarm {
     this.onEvent?.('connecting', { url: this.signalingUrl });
     this.tracker = new TrackerClient(this.signalingUrl, resource, {
       onOpen: () => this.onEvent?.('signaling-open', {}),
+      onClose: () => this.#reconnect(),
       makeOffers: async (n) => {
         const offers = await this.#makeOffers(n);
         this.onEvent?.('announce', { offers: offers.length, resource });
@@ -60,9 +61,45 @@ export class MeshSwarm {
     });
     this.tracker.onPeerCount = (count) => {
       this.onEvent?.('swarm-peers', { count });
+      if (count === 0) this.onEvent?.('waiting', {});
       this.onChange?.();
     };
     await this.tracker.connect();
+    this.#startKeepalive();
+  }
+
+  // Idle WebSockets get dropped by reverse proxies (~60s). Every 30s:
+  // unconnected -> fresh offers (and prune the superseded pending ones);
+  // connected -> an empty-offers announce as a pure presence ping.
+  #startKeepalive() {
+    clearInterval(this.keepalive);
+    this.keepalive = setInterval(async () => {
+      if (this.left || !this.tracker?.connected) return;
+      try {
+        if (this.peers.size === 0) {
+          for (const pc of this.pending.values()) pc.close();
+          this.pending.clear();
+          await this.tracker.announce();
+        } else {
+          await this.tracker.announce([]);
+          this.onEvent?.('keepalive', {});
+        }
+      } catch { /* socket died between check and send; onClose reconnects */ }
+    }, 30000);
+  }
+
+  async #reconnect(attempt = 1) {
+    if (this.left) return;
+    this.onEvent?.('signaling-lost', { attempt });
+    clearInterval(this.keepalive);
+    await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 30000)));
+    if (this.left) return;
+    try {
+      await this.join();
+      this.onEvent?.('signaling-restored', {});
+    } catch {
+      this.#reconnect(attempt + 1);
+    }
   }
 
   async #makeOffers(n) {
@@ -83,6 +120,7 @@ export class MeshSwarm {
   }
 
   async #answerOffer(sdp) {
+    if (this.peers.size >= 6) return null; // periodic re-announces must not multiply channels
     const pc = new RTCPeerConnection(RTC_CONFIG);
     pc.ondatachannel = (ev) => {
       ev.channel.binaryType = 'arraybuffer';
@@ -130,7 +168,11 @@ export class MeshSwarm {
   }
 
   leave() {
+    this.left = true;
+    clearInterval(this.keepalive);
     this.tracker?.close();
+    for (const pc of this.pending.values()) pc.close();
+    this.pending.clear();
     for (const p of this.peers) p.close();
     this.peers.clear();
   }
