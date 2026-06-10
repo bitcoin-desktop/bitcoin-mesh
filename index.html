@@ -95,13 +95,16 @@
   import { Codec } from '@bitcoin-desktop/schema/codec/codec.js';
   import { P2pEngine } from '@bitcoin-desktop/schema/codec/p2p.js';
   import { LightNode, IdbStorage, EsploraSource, BridgeSource } from '@bitcoin-desktop/schema/codec/node.js';
-  import { MeshSwarm } from './src/mesh.js';
-  import { normalizeSignalingUrl, diagnoseSignaling } from './src/tracker.js';
-  import { createWireLog, WIRELOG_CSS } from './src/log.js';
+  import { MeshSwarm } from './src/mesh.js?v=9';
+  import { normalizeSignalingUrl, diagnoseSignaling } from './src/tracker.js?v=9';
+  import { createWireLog, WIRELOG_CSS } from './src/log.js?v=9';
 
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: WIRELOG_CSS }));
   const wire = createWireLog(document.getElementById('wirelog'));
-  wire.line('note', 'wire log: every message and verdict, as it happens');
+  wire.line('note', 'wire log: every message and verdict, as it happens (v0.0.9)');
+  window.addEventListener('error', (e) => wire.line('bad', `page error: ${e.message}`));
+  window.addEventListener('unhandledrejection', (e) =>
+    wire.line('bad', `unhandled: ${e.reason?.message ?? e.reason}`));
 
   const SCHEMA = 'https://bitcoin-desktop.github.io/schema/';
   const $ = (id) => document.getElementById(id);
@@ -188,6 +191,7 @@
   } catch {}
   $('signal').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join').click(); });
   $('join').addEventListener('click', async () => {
+    wire.line('note', 'join clicked');
     try {
       const url = normalizeSignalingUrl($('signal').value);
       if (!url) throw new Error('enter a JSS signaling host, e.g. ws://localhost:4443');
@@ -206,6 +210,7 @@
       try { localStorage.setItem(SIGNAL_KEY, url); } catch {}
       $('mout').textContent = 'joined — waiting for peers…';
     } catch (e) {
+      wire.line('bad', `join failed: ${e.message}`);
       $('mout').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
     }
   });

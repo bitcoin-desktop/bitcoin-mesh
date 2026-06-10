@@ -2,8 +2,8 @@
 // Browser-side glue (RTCPeerConnection lives here and only here); the
 // tracker and channel logic are environment-neutral and tested in Node.
 
-import { TrackerClient, swarmId } from './tracker.js';
-import { PeerChannel, HeaderServer } from './peer.js';
+import { TrackerClient, swarmId } from './tracker.js?v=9';
+import { PeerChannel, HeaderServer } from './peer.js?v=9';
 
 const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
