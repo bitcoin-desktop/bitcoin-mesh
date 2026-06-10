@@ -10,6 +10,39 @@
 // Transport-agnostic by design: the WebRTC side is injected as callbacks,
 // so this logic is testable without an RTCPeerConnection.
 
+// Accept human input: "melvin.me" -> "wss://melvin.me/.webrtc",
+// "ws://localhost:4443" -> "ws://localhost:4443/.webrtc".
+export function normalizeSignalingUrl(input) {
+  let url = input.trim();
+  if (!url) return null;
+  if (!/^wss?:\/\//i.test(url)) {
+    const local = /^(localhost|127\.|\[?::1)/.test(url);
+    url = (local ? 'ws://' : 'wss://') + url;
+  }
+  try {
+    const u = new URL(url);
+    if (u.pathname === '/' || u.pathname === '') u.pathname = '/.webrtc';
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// Preflight the endpoint over HTTP so failures are diagnosable: a WebSocket
+// error event carries no status code, but a fetch does.
+export async function diagnoseSignaling(wsUrl) {
+  const httpUrl = wsUrl.replace(/^ws/, 'http');
+  try {
+    const res = await fetch(httpUrl, { method: 'GET' });
+    if (res.status === 404) {
+      return `JSS is reachable but signaling is off — start it with --webrtc (JSS_WEBRTC=true)`;
+    }
+    return null; // endpoint exists (e.g. 400/426 upgrade-required) — proceed
+  } catch {
+    return `signaling unreachable: ${wsUrl}`;
+  }
+}
+
 export class TrackerClient {
   /**
    * @param url       wss://pod/.webrtc

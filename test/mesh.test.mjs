@@ -13,7 +13,7 @@ import { P2pEngine } from '@bitcoin-desktop/schema/codec/p2p.js';
 import { HeaderEngine } from '@bitcoin-desktop/schema/codec/headers.js';
 import { LightNode, MemoryStorage } from '@bitcoin-desktop/schema/codec/node.js';
 import { attachWsServer } from '@bitcoin-desktop/schema/codec/ws.js';
-import { TrackerClient, swarmId } from '../src/tracker.js';
+import { TrackerClient, swarmId, normalizeSignalingUrl } from '../src/tracker.js';
 import { PeerChannel, HeaderServer } from '../src/peer.js';
 
 const load = async (p) =>
@@ -218,4 +218,12 @@ test('observability hooks fire: wire, serve, and they do not disturb the sync', 
   assert.ok(events.includes('A:in:getheaders'));
   assert.ok(events.includes('B:in:headers'));
   assert.ok(events.some((e) => e.startsWith('A:served:')));
+});
+
+test('signaling input normalizes like a human expects', () => {
+  assert.equal(normalizeSignalingUrl('melvin.me'), 'wss://melvin.me/.webrtc');
+  assert.equal(normalizeSignalingUrl('localhost:4443'), 'ws://localhost:4443/.webrtc');
+  assert.equal(normalizeSignalingUrl('ws://localhost:4443'), 'ws://localhost:4443/.webrtc');
+  assert.equal(normalizeSignalingUrl('wss://melvin.me/custom'), 'wss://melvin.me/custom');
+  assert.equal(normalizeSignalingUrl('  '), null);
 });

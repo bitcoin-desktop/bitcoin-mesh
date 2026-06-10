@@ -71,7 +71,7 @@
   <div class="panel">
     <h2>mesh — serve and sync headers browser-to-browser (WebRTC)</h2>
     <div class="row">
-      <input id="signal" spellcheck="false" placeholder="JSS signaling, e.g. ws://localhost:4443/.webrtc  (jss start --webrtc)">
+      <input id="signal" spellcheck="false" placeholder="JSS signaling host, e.g. melvin.me  (needs: jss start --webrtc)">
       <button id="join">Join swarm</button>
       <button id="peersync" disabled>Sync from peer</button>
     </div>
@@ -96,6 +96,7 @@
   import { P2pEngine } from '@bitcoin-desktop/schema/codec/p2p.js';
   import { LightNode, IdbStorage, EsploraSource, BridgeSource } from '@bitcoin-desktop/schema/codec/node.js';
   import { MeshSwarm } from './src/mesh.js';
+  import { normalizeSignalingUrl, diagnoseSignaling } from './src/tracker.js';
   import { createWireLog, WIRELOG_CSS } from './src/log.js';
 
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: WIRELOG_CSS }));
@@ -182,8 +183,11 @@
   }
   $('join').addEventListener('click', async () => {
     try {
-      const url = $('signal').value.trim();
-      if (!url) throw new Error('enter a JSS /.webrtc signaling URL');
+      const url = normalizeSignalingUrl($('signal').value);
+      if (!url) throw new Error('enter a JSS signaling host, e.g. melvin.me or ws://localhost:4443');
+      $('signal').value = url;
+      const problem = await diagnoseSignaling(url);
+      if (problem) throw new Error(problem);
       const network = $('network').value;
       const genesisHash = chainSchema['@graph'].find((n) => n['@id'] === network).genesisHash;
       const engine = P2pEngine.fromSchemas(codec, p2pSchema, chainSchema, network);
