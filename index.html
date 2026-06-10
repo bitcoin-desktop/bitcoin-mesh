@@ -76,6 +76,7 @@
       <button id="peersync" disabled>Sync from peer</button>
     </div>
     <div id="mout" style="margin-top:.6rem;font:13px var(--mono);color:var(--muted)"></div>
+    <div id="wirelog"></div>
   </div>
 
   <div class="panel">
@@ -95,6 +96,11 @@
   import { P2pEngine } from '@bitcoin-desktop/schema/codec/p2p.js';
   import { LightNode, IdbStorage, EsploraSource, BridgeSource } from '@bitcoin-desktop/schema/codec/node.js';
   import { MeshSwarm } from './src/mesh.js';
+  import { createWireLog, WIRELOG_CSS } from './src/log.js';
+
+  document.head.appendChild(Object.assign(document.createElement('style'), { textContent: WIRELOG_CSS }));
+  const wire = createWireLog(document.getElementById('wirelog'));
+  wire.line('note', 'wire log: every message and verdict, as it happens');
 
   const SCHEMA = 'https://bitcoin-desktop.github.io/schema/';
   const $ = (id) => document.getElementById(id);
@@ -141,18 +147,26 @@
       if (bridgeUrl) {
         const engine = P2pEngine.fromSchemas(codec, p2pSchema, chainSchema, $('network').value);
         const source = new BridgeSource(bridgeUrl, codec, engine);
-        status = await node.syncP2p(source, {
-          onProgress: (at) => { $('status').textContent = `p2p: validated to ${at.toLocaleString()}`; render(); },
+        status = await node.syncP2p(wire.wrapSource(source, 'bridge'), {
+          onProgress: (at) => {
+            wire.line('ok', `validated to ${at.toLocaleString()}`);
+            $('status').textContent = `p2p: validated to ${at.toLocaleString()}`; render();
+          },
         });
         source.close();
       } else {
+        node.sources = node.sources.map((src, i) => wire.wrapSource(src, `http:${i}`));
         status = await node.sync({
-          onProgress: (at, target) => { $('status').textContent = `validated to ${at.toLocaleString()} / ${target.toLocaleString()}`; render(); },
+          onProgress: (at, target) => {
+            wire.line('ok', `validated to ${at.toLocaleString()} / ${target.toLocaleString()}`);
+            $('status').textContent = `validated to ${at.toLocaleString()} / ${target.toLocaleString()}`; render();
+          },
         });
       }
       $('status').textContent = `✓ synced to ${status.tipHeight.toLocaleString()} — every header validated locally${bridgeUrl ? ' (via bridge)' : ''}`;
       render();
     } catch (e) {
+      wire.line('bad', e.message);
       $('status').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
     } finally {
       $('sync').disabled = false;
@@ -175,6 +189,7 @@
       const engine = P2pEngine.fromSchemas(codec, p2pSchema, chainSchema, network);
       swarm = new MeshSwarm({ signalingUrl: url, node, codec, p2pEngine: engine, genesisHash });
       swarm.onChange = renderMesh;
+      swarm.onEvent = (type, detail) => wire.meshEvent(type, detail);
       await swarm.join();
       $('mout').textContent = 'joined — waiting for peers…';
     } catch (e) {
@@ -185,11 +200,14 @@
     try {
       $('peersync').disabled = true;
       const status = await swarm.syncFromPeer((at) => {
+        wire.line('ok', `validated to ${at.toLocaleString()} (from peer)`);
         $('mout').textContent = `syncing from peer: validated to ${at.toLocaleString()}`;
       });
+      wire.line('ok', `peer sync complete: tip ${status.tipHeight.toLocaleString()} — every header verified on receipt`);
       $('mout').textContent = `✓ synced to ${status.tipHeight.toLocaleString()} from a browser peer — every header verified on receipt`;
       render();
     } catch (e) {
+      wire.line('bad', e.message);
       $('mout').innerHTML = `<span style="color:var(--bad)">✖ ${e.message}</span>`;
     } finally {
       renderMesh();

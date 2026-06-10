@@ -35,18 +35,31 @@ export class MeshSwarm {
     this.pending = new Map(); // offer_id -> RTCPeerConnection
     this.peers = new Set();   // connected PeerChannels
     this.onChange = null;
+    this.onEvent = null;      // (type, detail) => void — observability
+    this.server.onServe = (count, total) => this.onEvent?.('served', { count, total });
   }
 
   async join() {
     const resource = await swarmId(this.genesisHash);
     this.tracker = new TrackerClient(this.signalingUrl, resource, {
-      makeOffers: (n) => this.#makeOffers(n),
-      onOffer: (from, offerId, sdp) => this.#answerOffer(sdp),
+      makeOffers: async (n) => {
+        const offers = await this.#makeOffers(n);
+        this.onEvent?.('announce', { offers: offers.length, resource });
+        return offers;
+      },
+      onOffer: (from, offerId, sdp) => {
+        this.onEvent?.('offer-in', {});
+        return this.#answerOffer(sdp);
+      },
       onAnswer: (offerId, sdp) => {
+        this.onEvent?.('answer-in', {});
         this.pending.get(offerId)?.setRemoteDescription({ type: 'answer', sdp });
       },
     });
-    this.tracker.onPeerCount = () => this.onChange?.();
+    this.tracker.onPeerCount = (count) => {
+      this.onEvent?.('swarm-peers', { count });
+      this.onChange?.();
+    };
     await this.tracker.connect();
   }
 
@@ -81,10 +94,17 @@ export class MeshSwarm {
   #adopt(pc, dc) {
     dc.onopen = () => {
       const peer = new PeerChannel(dc, this.codec, this.engine);
+      peer.onWire = (dir, command, size) =>
+        this.onEvent?.(dir === 'in' ? 'wire-in' : 'wire-out', { command, size });
       this.server.attach(peer); // every node serves
       this.peers.add(peer);
+      this.onEvent?.('peer-open', {});
       this.onChange?.();
-      dc.onclose = () => { this.peers.delete(peer); this.onChange?.(); };
+      dc.onclose = () => {
+        this.peers.delete(peer);
+        this.onEvent?.('peer-close', {});
+        this.onChange?.();
+      };
     };
     pc.onconnectionstatechange = () => {
       if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) this.onChange?.();
